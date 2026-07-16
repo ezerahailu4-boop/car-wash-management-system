@@ -9,7 +9,9 @@ type QueryBuilder = {
   limit: (...args: unknown[]) => QueryBuilder;
   single: () => Promise<{ data: null; error: null }>;
   insert: (...args: unknown[]) => Promise<{ data: null; error: null }>;
-  update: (...args: unknown[]) => Promise<{ data: null; error: null }>;
+  update: (...args: unknown[]) => QueryBuilder;
+  upsert: (...args: unknown[]) => QueryBuilder;
+  delete: (...args: unknown[]) => QueryBuilder;
   then: (resolve: (value: { data: unknown[] | null }) => void) => void;
 };
 
@@ -23,7 +25,9 @@ function createFallbackQueryBuilder(data: unknown[] = []) {
     limit: () => builder,
     single: async () => ({ data: null, error: null }),
     insert: async () => ({ data: null, error: null }),
-    update: async () => ({ data: null, error: null }),
+    update: () => builder,
+    upsert: () => builder,
+    delete: () => builder,
     then: (resolve) => resolve({ data }),
   };
 
