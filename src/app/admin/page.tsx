@@ -57,13 +57,15 @@ export default function AdminPage() {
         .gte("started_at", `${today}T00:00:00`)
         .eq("status", "completed");
 
+      type TxnRow = { washer_id: string; price: number | null; soap_used_ml: number | null; profiles: { full_name: string } | null };
       const map: Record<string, WasherStat> = {};
-      (txns ?? []).forEach((t) => {
-        const name = (t.profiles as { full_name: string } | null)?.full_name ?? t.washer_id;
-        if (!map[t.washer_id]) map[t.washer_id] = { id: t.washer_id, name, soapOut: 0, revenue: 0, cars: 0 };
-        map[t.washer_id].soapOut  += t.soap_used_ml ?? 0;
-        map[t.washer_id].revenue  += t.price ?? 0;
-        map[t.washer_id].cars     += 1;
+      (txns ?? [] as TxnRow[]).forEach((t) => {
+        const row = t as TxnRow;
+        const name = row.profiles?.full_name ?? row.washer_id;
+        if (!map[row.washer_id]) map[row.washer_id] = { id: row.washer_id, name, soapOut: 0, revenue: 0, cars: 0 };
+        map[row.washer_id].soapOut  += row.soap_used_ml ?? 0;
+        map[row.washer_id].revenue  += row.price ?? 0;
+        map[row.washer_id].cars     += 1;
       });
 
       const result = Object.values(map);
