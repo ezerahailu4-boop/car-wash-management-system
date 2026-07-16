@@ -68,22 +68,24 @@ export default function DashboardPage() {
       .then((d) => {
         if (!d.washes.length && !d.inventory.length) throw new Error("no data");
 
+        type WashRow = { vehicle_type_id: string; price: number | null; soap_used_ml: number | null; actual_minutes: number | null };
+        type WasherRow = { washer_id: string; balance_ml: number; profiles: { full_name: string } | null };
         const fleetCount: Record<string, number> = {};
-        d.washes.forEach((w: any) => {
+        (d.washes as WashRow[]).forEach((w) => {
           fleetCount[w.vehicle_type_id] = (fleetCount[w.vehicle_type_id] ?? 0) + 1;
         });
 
         setStats({
           carsToday: d.washes.length,
-          revenueToday: d.washes.reduce((s, w) => s + (w.price ?? 0), 0),
-          soapUsed: d.washes.reduce((s, w) => s + (w.soap_used_ml ?? 0), 0),
+          revenueToday: (d.washes as WashRow[]).reduce((s, w) => s + (w.price ?? 0), 0),
+          soapUsed: (d.washes as WashRow[]).reduce((s, w) => s + (w.soap_used_ml ?? 0), 0),
           pendingRequests: d.pendingRequests,
           avgMinutes: d.washes.length
-            ? Math.round(d.washes.reduce((s, w) => s + (w.actual_minutes ?? 0), 0) / d.washes.length)
+            ? Math.round((d.washes as WashRow[]).reduce((s, w) => s + (w.actual_minutes ?? 0), 0) / d.washes.length)
             : 0,
-          lowStock: d.inventory.filter((i) => i.status !== "ok").length,
-          washers: (d.washers as any[]).map((w) => ({
-            name: (w.profiles as any)?.full_name ?? "Unknown",
+          lowStock: (d.inventory as { status: string }[]).filter((i) => i.status !== "ok").length,
+          washers: (d.washers as WasherRow[]).map((w) => ({
+            name: w.profiles?.full_name ?? "Unknown",
             ml: w.balance_ml,
           })),
           revenueTrend: REVENUE_TREND,

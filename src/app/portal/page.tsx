@@ -46,27 +46,33 @@ export default function PortalPage() {
     try {
       const d = await fetchWasherStats(authUser.id);
       const { data: inv } = await supabase.from("inventory").select("product_name");
-      if (inv?.length) setProducts(inv.map((i: any) => i.product_name));
+      type InvNameRow = { product_name: string };
+      if (inv?.length) setProducts((inv as InvNameRow[]).map((i) => i.product_name));
 
-      const totalSoap = d.soap.reduce((s: number, x: any) => s + x.balance_ml, 0);
+      type SoapBalRow = { balance_ml: number };
+      type HistRow = { id: string; vehicles?: { plate: string } | null; vehicle_type_id: string; price: number; soap_used_ml: number; started_at: string };
+      type ReqRow = { id: string; request_number: string; status: string; quantity_requested: number; inventory?: { product_name: string } | null; created_at: string };
+      type WashPriceRow = { price: number; started_at: string };
+
+      const totalSoap = (d.soap as SoapBalRow[]).reduce((s, x) => s + x.balance_ml, 0);
 
       setStats({
         todayWashes: d.todayWashes.length,
-        todayRevenue: d.todayWashes.reduce((s: number, w: any) => s + w.price, 0),
+        todayRevenue: (d.todayWashes as WashPriceRow[]).reduce((s, w) => s + w.price, 0),
         soapMl: totalSoap,
-        history: (d.history as any[]).map((h) => ({
+        history: (d.history as HistRow[]).map((h) => ({
           id: h.id, plate: h.vehicles?.plate ?? "—",
           vehicle_type_id: h.vehicle_type_id, price: h.price,
           soap_used_ml: h.soap_used_ml, started_at: h.started_at,
         })),
-        requests: (d.requests as any[]).map((r) => ({
+        requests: (d.requests as ReqRow[]).map((r) => ({
           id: r.id, request_number: r.request_number, status: r.status,
           quantity_requested: r.quantity_requested,
           product: r.inventory?.product_name ?? "—",
           created_at: r.created_at,
         })),
       });
-      setReqForm((f) => ({ ...f, product: inv?.[0]?.product_name ?? INVENTORY[0].product_name }));
+      setReqForm((f) => ({ ...f, product: (inv as InvNameRow[])?.[0]?.product_name ?? INVENTORY[0].product_name }));
     } catch {
       setUseMock(true);
     }

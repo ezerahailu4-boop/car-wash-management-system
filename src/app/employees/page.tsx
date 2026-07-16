@@ -42,15 +42,20 @@ export default function EmployeesPage() {
           .from("washer_inventory")
           .select("washer_id, balance_ml");
 
+        type TxnRow  = { washer_id: string; price: number | null };
+        type SoapRow = { washer_id: string; balance_ml: number };
+
         const stats: Record<string, { cars: number; revenue: number; soap: number }> = {};
-        (txns ?? []).forEach((t) => {
-          if (!stats[t.washer_id]) stats[t.washer_id] = { cars: 0, revenue: 0, soap: 0 };
-          stats[t.washer_id].cars++;
-          stats[t.washer_id].revenue += t.price ?? 0;
+        (txns ?? [] as TxnRow[]).forEach((t) => {
+          const row = t as TxnRow;
+          if (!stats[row.washer_id]) stats[row.washer_id] = { cars: 0, revenue: 0, soap: 0 };
+          stats[row.washer_id].cars++;
+          stats[row.washer_id].revenue += row.price ?? 0;
         });
-        (soap ?? []).forEach((s) => {
-          if (!stats[s.washer_id]) stats[s.washer_id] = { cars: 0, revenue: 0, soap: 0 };
-          stats[s.washer_id].soap = s.balance_ml;
+        (soap ?? [] as SoapRow[]).forEach((s) => {
+          const row = s as SoapRow;
+          if (!stats[row.washer_id]) stats[row.washer_id] = { cars: 0, revenue: 0, soap: 0 };
+          stats[row.washer_id].soap = row.balance_ml;
         });
         setWasherStats(stats);
       } else {

@@ -66,7 +66,8 @@ export default function StorePage() {
         .select("id, request_number, quantity_requested, quantity_approved, status, notes, created_at, profiles(full_name)")
         .order("created_at", { ascending: false });
       if (data?.length) {
-        setSoapReqs(data.map((r) => ({
+        type SoapReqRow = { id: string; request_number: string; quantity_requested: number; quantity_approved: number | null; status: string; notes: string | null; created_at: string; profiles: { full_name: string } | null };
+        setSoapReqs((data as SoapReqRow[]).map((r) => ({
           id: r.id,
           request_number: r.request_number,
           washer_name: (r.profiles as { full_name: string } | null)?.full_name ?? "Unknown",
@@ -145,7 +146,11 @@ export default function StorePage() {
       const { createClient } = await import("@/lib/supabase/client");
       const supabase = createClient();
       // Find matching inventory item and add stock
-      const { data: inv } = await supabase.from("inventory").select("id, total_ml").ilike("product_name", `%${order.product}%`).single();
+      const { data: invList } = await supabase.from("inventory").select("id, total_ml, product_name").limit(20);
+      type InvStockRow = { id: string; total_ml: number; product_name: string };
+      const inv = (invList as InvStockRow[] ?? []).find((i) =>
+        i.product_name?.toLowerCase().includes(order.product.toLowerCase())
+      ) ?? (invList as InvStockRow[])?.[0];
       if (inv) {
         await supabase.from("inventory").update({ total_ml: inv.total_ml + order.qty_ml }).eq("id", inv.id);
         await supabase.from("inventory_movements").insert({ inventory_id: inv.id, change_ml: order.qty_ml, reason: "purchase" });
