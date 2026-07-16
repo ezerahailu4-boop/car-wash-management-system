@@ -99,9 +99,12 @@ export default function EmployeeProfilePage() {
     const supabase = createClient();
     try {
       // find the main soap product in inventory
-      const { data: inv } = await supabase
-        .from("inventory").select("id").ilike("product_name", "%shampoo%").single();
-      const inventoryId = inv?.id;
+      const { data: invList } = await supabase
+        .from("inventory").select("id, product_name").limit(10);
+      const inventoryId = (invList ?? []).find((i: { id: string; product_name: string }) =>
+        i.product_name?.toLowerCase().includes("shampoo") ||
+        i.product_name?.toLowerCase().includes("soap")
+      )?.id ?? invList?.[0]?.id;
       if (!inventoryId) throw new Error("no inventory");
 
       await supabase.from("soap_requests").insert({
