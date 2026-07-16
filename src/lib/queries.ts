@@ -96,7 +96,7 @@ export async function fetchWasherStats(washerId: string) {
   ]);
 
   const todayWashes = (historyRes.data ?? []).filter((w) =>
-    w.started_at?.startsWith(today)
+    (w as { started_at?: string }).started_at?.startsWith(today)
   );
 
   return {
