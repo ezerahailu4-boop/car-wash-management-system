@@ -101,10 +101,12 @@ export default function EmployeeProfilePage() {
       // find the main soap product in inventory
       const { data: invList } = await supabase
         .from("inventory").select("id, product_name").limit(10);
-      const inventoryId = (invList ?? []).find((i: { id: string; product_name: string }) =>
+      type InvRow = { id: string; product_name: string };
+      const invRows = (invList ?? []) as InvRow[];
+      const inventoryId = (invRows.find((i) =>
         i.product_name?.toLowerCase().includes("shampoo") ||
         i.product_name?.toLowerCase().includes("soap")
-      )?.id ?? invList?.[0]?.id;
+      ) ?? invRows[0])?.id;
       if (!inventoryId) throw new Error("no inventory");
 
       await supabase.from("soap_requests").insert({
