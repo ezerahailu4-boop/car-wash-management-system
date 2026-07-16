@@ -50,16 +50,26 @@ export default function EmployeeProfilePage() {
       setName(profile.full_name ?? "Employee");
       setRole(profile.role ?? "washer");
 
+      type SoapRow    = { balance_ml: number };
+      type HistoryRow  = { id: string; vehicles?: { plate: string } | null; vehicle_type_id: string; price: number; soap_used_ml: number; started_at: string };
+      type RequestRow  = { id: string; request_number: string; status: string; quantity_requested: number; notes?: string | null; created_at: string };
+      type WashRow     = { price: number; started_at: string };
+
       const d = await fetchWasherStats(id);
-      setSoapMl(d.soap.reduce((s: number, x: { balance_ml: number }) => s + x.balance_ml, 0));
-      setTodayWashes(d.todayWashes.length);
-      setTodayRevenue(d.todayWashes.reduce((s: number, w: { price: number }) => s + w.price, 0));
-      setHistory((d.history as { id: string; vehicles?: { plate: string }; vehicle_type_id: string; price: number; soap_used_ml: number; started_at: string }[]).map((h) => ({
+      const soap     = d.soap     as SoapRow[];
+      const history  = d.history  as HistoryRow[];
+      const requests = d.requests as RequestRow[];
+      const todayW   = d.todayWashes as WashRow[];
+
+      setSoapMl(soap.reduce((s, x) => s + x.balance_ml, 0));
+      setTodayWashes(todayW.length);
+      setTodayRevenue(todayW.reduce((s, w) => s + w.price, 0));
+      setHistory(history.map((h) => ({
         id: h.id, plate: h.vehicles?.plate ?? "—",
         vehicle_type_id: h.vehicle_type_id, price: h.price,
         soap_used_ml: h.soap_used_ml, started_at: h.started_at,
       })));
-      setRequests((d.requests as { id: string; request_number: string; status: string; quantity_requested: number; inventory?: { product_name: string }; notes?: string; created_at: string }[]).map((r) => ({
+      setRequests(requests.map((r) => ({
         id: r.id, request_number: r.request_number, status: r.status,
         quantity_requested: r.quantity_requested,
         vehicle_type: r.notes ?? "—",
