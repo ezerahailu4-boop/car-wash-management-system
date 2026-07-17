@@ -88,9 +88,9 @@ type Notification = { id: string; message: string; type: string; read: boolean; 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [role, setRole] = useState<string>("washer");
-  const [userName, setUserName] = useState("EZ");
-  const [userInitials, setUserInitials] = useState("EZ");
+  const [role, setRole] = useState<string>("administrator");
+  const [userName, setUserName] = useState("Admin");
+  const [userInitials, setUserInitials] = useState("AD");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
