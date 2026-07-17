@@ -56,6 +56,25 @@ export async function fetchWashTransactions(from?: string, to?: string) {
   return data ?? [];
 }
 
+export async function fetchRequests() {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("soap_requests")
+    .select("id, request_number, status, quantity_requested, quantity_approved, created_at, washer_id, profiles(full_name), inventory(product_name)")
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function fetchWashersWithSoap() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any;
+  const { data } = await supabase
+    .from("washer_inventory")
+    .select("washer_id, balance_ml, profiles(full_name, active)");
+  return (data as unknown[]) ?? [];
+}
+
+
 export async function fetchNotifications(userId: string) {
   const supabase = createClient();
   const { data } = await supabase

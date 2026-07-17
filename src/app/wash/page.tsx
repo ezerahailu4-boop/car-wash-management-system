@@ -1,31 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, Droplet } from "lucide-react";
 import { VEHICLE_TYPES, WASHERS } from "@/lib/mock";
 import { createClient } from "@/lib/supabase/client";
 
+type Washer = { id: string; name: string; soap: number };
 type LogEntry = { plate: string; vehicleName: string; washer: string; time: string; price: number };
 
 export default function WashEntryPage() {
   const [vehicleType, setVehicleType] = useState<(typeof VEHICLE_TYPES)[number]["id"]>("small");
   const [plate, setPlate] = useState("");
   const [customer, setCustomer] = useState("");
-  const [washerId, setWasherId] = useState(WASHERS[0].id);
+  const [washerId, setWasherId] = useState("");
+  const [washers, setWashers] = useState<Washer[]>([]);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    async function loadWashers() {
+      const supabase = createClient();
+      try {
+        const { data } = await supabase
+          .from("washer_inventory")
+          .select("washer_id, balance_ml, profiles(full_name, active)")
+          .eq("profiles.active", true);
+        type Row = { washer_id: string; balance_ml: number; profiles: { full_name: string; active: boolean } | null };
+        if (data?.length) {
+          const list = (data as Row[]).map((r) => ({
+            id: r.washer_id,
+            name: r.profiles?.full_name ?? "Unknown",
+            soap: r.balance_ml,
+          }));
+          setWashers(list);
+          setWasherId(list[0]?.id ?? "");
+          return;
+        }
+      } catch { /* fall through */ }
+      // fallback
+      setWashers(WASHERS.map((w) => ({ id: w.id, name: w.name, soap: w.soap })));
+      setWasherId(WASHERS[0].id);
+    }
+    loadWashers();
+  }, []);
+
   const vt = VEHICLE_TYPES.find((v) => v.id === vehicleType)!;
-  const washer = WASHERS.find((w) => w.id === washerId)!;
-  const insufficient = washer.soap < vt.default_soap_ml;
+  const washer = washers.find((w) => w.id === washerId);
+  const insufficient = washer ? washer.soap < vt.default_soap_ml : false;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!plate || insufficient) return;
+    if (!plate || insufficient || !washer) return;
     setSaving(true);
 
-    // Attempt a real write to Supabase; fall back to local demo log if env/tables aren't set up yet.
     try {
       const supabase = createClient();
       const { data: vehicle, error: vErr } = await supabase
@@ -45,8 +73,11 @@ export default function WashEntryPage() {
         completed_at: new Date().toISOString(),
       });
       if (txErr) throw txErr;
+
+      // Optimistically update local soap balance
+      setWashers((prev) => prev.map((w) => w.id === washerId ? { ...w, soap: w.soap - vt.default_soap_ml } : w));
     } catch {
-      // Demo mode: Supabase not configured yet — still reflect the action in the UI.
+      // Demo mode — still reflect in UI
     }
 
     setLog((prev) => [
@@ -122,7 +153,7 @@ export default function WashEntryPage() {
             onChange={(e) => setWasherId(e.target.value)}
             className="w-full mt-1 rounded-xl px-3 py-2.5 text-sm bg-panel-2 border border-line outline-none focus:ring-2 focus:ring-accent"
           >
-            {WASHERS.map((w) => (
+            {washers.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name} — {w.soap} ml available
               </option>
@@ -137,11 +168,11 @@ export default function WashEntryPage() {
 
         <div className="flex items-center justify-between pt-2 border-t border-line">
           <p className="text-xs font-[family-name:var(--font-mono)] text-muted">
-            2 workers · standard {vt.standard_minutes} min
+            standard {vt.standard_minutes} min
           </p>
           <button
             type="submit"
-            disabled={insufficient || !plate || saving}
+            disabled={insufficient || !plate || saving || !washer}
             className="px-4 py-2 rounded-xl text-sm font-medium bg-accent text-[#06201D] disabled:opacity-40 disabled:pointer-events-none flex items-center gap-2"
           >
             <CheckCircle2 size={16} /> {saving ? "Saving…" : `Complete Wash — ${vt.default_price} birr`}

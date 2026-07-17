@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   LayoutGrid, Droplet, Box, Bell, Users, BarChart3,
-  Settings, LogOut, ShieldCheck, Store, UserCircle, X,
-  Menu, Sun, Moon,
+  LogOut, ShieldCheck, Store, UserCircle, X,
+  Menu, Sun, Moon, ChevronRight,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchNotifications, markNotificationRead } from "@/lib/queries";
@@ -28,9 +28,7 @@ const STORE_ROUTES = ["/store"];
 
 function ThemeToggle() {
   const [dark, setDark] = useState(false);
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  useEffect(() => { setDark(document.documentElement.classList.contains("dark")); }, []);
   function toggle() {
     const next = !dark;
     setDark(next);
@@ -73,7 +71,7 @@ function LockedLayout({ label, icon: Icon, name, role, children }: {
             <p className="text-[11px] font-[family-name:var(--font-mono)] text-[var(--muted)] capitalize">{role.replace("_", " ")}</p>
           </div>
           <div className="w-9 h-9 rounded-full font-[family-name:var(--font-display)] flex items-center justify-center text-sm bg-[var(--accent)] text-white">
-            {name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+            {name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
           </div>
           <button onClick={signOut} className="rounded-xl p-2.5 bg-[var(--panel-2)] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]">
             <LogOut size={16} />
@@ -92,26 +90,33 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [role, setRole] = useState<string>("washer");
   const [userName, setUserName] = useState("EZ");
+  const [userInitials, setUserInitials] = useState("EZ");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotif, setShowNotif] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const profileLoaded = useRef(false);
 
   useEffect(() => { setDrawerOpen(false); }, [pathname]);
 
+  // Load profile only once, not on every route change
   useEffect(() => {
+    if (profileLoaded.current) return;
+    profileLoaded.current = true;
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single();
       if (profile) {
         setRole(profile.role);
-        setUserName(profile.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) ?? "EZ");
+        const fullName = profile.full_name ?? "User";
+        setUserName(fullName);
+        setUserInitials(fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase());
         const notifs = await fetchNotifications(user.id);
         setNotifications(notifs as Notification[]);
       }
     });
-  }, [pathname]);
+  }, []);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -124,7 +129,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.replace("/");
+    profileLoaded.current = false;
+    router.replace("/login");
   }
 
   async function handleNotifClick(n: Notification) {
@@ -137,10 +143,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   if (pathname === "/login") return <>{children}</>;
 
   if (WASHER_ROUTES.some((r) => pathname.startsWith(r)))
-    return <LockedLayout label="Employee Portal" icon={UserCircle} name={userName.length > 2 ? userName : "Washer"} role="washer">{children}</LockedLayout>;
+    return <LockedLayout label="Employee Portal" icon={UserCircle} name={userName} role="washer">{children}</LockedLayout>;
 
   if (STORE_ROUTES.some((r) => pathname.startsWith(r)))
-    return <LockedLayout label="Store" icon={Store} name={userName.length > 2 ? userName : "Store Keeper"} role="store keeper">{children}</LockedLayout>;
+    return <LockedLayout label="Store" icon={Store} name={userName} role="store keeper">{children}</LockedLayout>;
 
   const NAV = ALL_NAV.filter((n) => n.roles.includes(role));
   const unread = notifications.filter((n) => !n.read).length;
@@ -148,14 +154,15 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const NavLinks = ({ onClick }: { onClick?: () => void }) => (
     <>
       {NAV.map((n) => {
-        const active = pathname === n.href;
+        const active = pathname === n.href || (n.href !== "/" && pathname.startsWith(n.href));
         const Icon = n.icon;
         return (
           <Link key={n.href} href={n.href} onClick={onClick}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition group"
             style={{ background: active ? "var(--panel-2)" : "transparent", color: active ? "var(--accent)" : "var(--muted)" }}>
             <Icon size={17} />
-            {n.label}
+            <span className="flex-1">{n.label}</span>
+            {active && <ChevronRight size={14} className="opacity-50" />}
           </Link>
         );
       })}
@@ -172,16 +179,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <p className="font-[family-name:var(--font-display)] text-lg leading-none text-[var(--text)]">WashOS</p>
-            <p className="text-[11px] font-[family-name:var(--font-mono)] text-[var(--muted)]">Car Wash</p>
+            <p className="text-[11px] font-[family-name:var(--font-mono)] text-[var(--muted)]">Car Wash ERP</p>
           </div>
         </div>
         <nav className="space-y-1 flex-1">
           <NavLinks />
         </nav>
-        <div className="pt-4 border-t border-[var(--line)] space-y-1">
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--muted)] hover:text-[var(--text)]">
-            <Settings size={17} /> Settings
-          </button>
+        <div className="pt-4 border-t border-[var(--line)]">
           <button onClick={signOut} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--muted)] hover:text-[var(--red)] transition">
             <LogOut size={17} /> Sign out
           </button>
@@ -200,20 +204,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 </div>
                 <div>
                   <p className="font-[family-name:var(--font-display)] text-lg leading-none text-[var(--text)]">WashOS</p>
-                  <p className="text-[11px] font-[family-name:var(--font-mono)] text-[var(--muted)]">Car Wash</p>
+                  <p className="text-[11px] font-[family-name:var(--font-mono)] text-[var(--muted)]">Car Wash ERP</p>
                 </div>
               </div>
               <button onClick={() => setDrawerOpen(false)} className="text-[var(--muted)] hover:text-[var(--text)] p-1">
                 <X size={20} />
               </button>
             </div>
-            <nav className="space-y-1 flex-1">
+            <nav className="space-y-1 flex-1 overflow-y-auto">
               <NavLinks onClick={() => setDrawerOpen(false)} />
             </nav>
-            <div className="pt-4 border-t border-[var(--line)] space-y-1">
-              <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--muted)] hover:text-[var(--text)]">
-                <Settings size={17} /> Settings
-              </button>
+            <div className="pt-4 border-t border-[var(--line)]">
               <button onClick={signOut} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-[var(--muted)] hover:text-[var(--red)] transition">
                 <LogOut size={17} /> Sign out
               </button>
@@ -225,12 +226,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[var(--line)] sticky top-0 z-10 backdrop-blur bg-[var(--panel)]/90">
           <div className="flex items-center gap-3">
-            {/* Mobile hamburger */}
             <button onClick={() => setDrawerOpen(true)} className="lg:hidden rounded-xl p-2.5 bg-[var(--panel-2)] border border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]">
               <Menu size={17} />
             </button>
             <h2 className="font-[family-name:var(--font-display)] text-lg sm:text-xl capitalize text-[var(--text)]">
-              {NAV.find((n) => n.href === pathname)?.label ?? "WashOS"}
+              {NAV.find((n) => n.href === pathname || (n.href !== "/" && pathname.startsWith(n.href)))?.label ?? "WashOS"}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -272,29 +272,34 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
+            <div className="hidden sm:block text-right">
+              <p className="text-sm font-medium text-[var(--text)]">{userName}</p>
+              <p className="text-[11px] font-[family-name:var(--font-mono)] text-[var(--muted)] capitalize">{role.replace("_", " ")}</p>
+            </div>
             <div className="w-9 h-9 rounded-full font-[family-name:var(--font-display)] flex items-center justify-center text-sm bg-[var(--accent)] text-white">
-              {userName}
+              {userInitials}
             </div>
           </div>
         </header>
 
-        {/* Extra bottom padding on mobile for the nav bar */}
         <main className="p-4 sm:p-6 flex-1 overflow-y-auto pb-24 lg:pb-6">{children}</main>
       </div>
 
-      {/* Mobile bottom nav */}
-      <div className="mobile-nav lg:hidden fixed bottom-0 left-0 right-0 flex justify-around px-2 pt-2 border-t border-[var(--line)] bg-[var(--panel)] z-20">
-        {NAV.slice(0, 5).map((n) => {
-          const active = pathname === n.href;
-          const Icon = n.icon;
-          return (
-            <Link key={n.href} href={n.href} className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl"
-              style={{ color: active ? "var(--accent)" : "var(--muted)" }}>
-              <Icon size={20} />
-              <span className="text-[9px] font-medium">{n.label.split(" ")[0]}</span>
-            </Link>
-          );
-        })}
+      {/* Mobile bottom nav — scrollable so all items are reachable */}
+      <div className="mobile-nav lg:hidden fixed bottom-0 left-0 right-0 border-t border-[var(--line)] bg-[var(--panel)] z-20">
+        <div className="flex overflow-x-auto scrollbar-none px-2 pt-2 gap-1">
+          {NAV.map((n) => {
+            const active = pathname === n.href || (n.href !== "/" && pathname.startsWith(n.href));
+            const Icon = n.icon;
+            return (
+              <Link key={n.href} href={n.href} className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl shrink-0"
+                style={{ color: active ? "var(--accent)" : "var(--muted)" }}>
+                <Icon size={20} />
+                <span className="text-[9px] font-medium whitespace-nowrap">{n.label.split(" ")[0]}</span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

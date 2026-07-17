@@ -38,7 +38,7 @@ function SoapGauge({ label, ml, capacity = 700 }: { label: string; ml: number; c
           stroke={critical ? "var(--red)" : "var(--accent)"} strokeWidth="7"
           strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c}
           strokeLinecap="round" transform="rotate(-90 38 38)" />
-        <text x="38" y="42" textAnchor="middle" fontSize="13" fill="var(--text)" fontFamily="IBM Plex Mono">
+        <text x="38" y="42" textAnchor="middle" fontSize="13" fill="var(--text)" fontFamily="var(--font-mono)">
           {Math.round(pct)}%
         </text>
       </svg>
@@ -54,12 +54,13 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<{
     carsToday: number;
     revenueToday: number;
+    revenueYesterday: number;
     soapUsed: number;
     pendingRequests: number;
     avgMinutes: number;
     lowStock: number;
     washers: { name: string; ml: number }[];
-    revenueTrend: typeof REVENUE_TREND;
+    revenueTrend: { day: string; revenue: number; expenses?: number }[];
     fleetMix: { name: string; value: number; color: string }[];
   } | null>(null);
 
@@ -68,16 +69,35 @@ export default function DashboardPage() {
       .then((d) => {
         if (!d.washes.length && !d.inventory.length) throw new Error("no data");
 
-        type WashRow = { vehicle_type_id: string; price: number | null; soap_used_ml: number | null; actual_minutes: number | null };
+        type WashRow = { vehicle_type_id: string; price: number | null; soap_used_ml: number | null; actual_minutes: number | null; started_at: string };
         type WasherRow = { washer_id: string; balance_ml: number; profiles: { full_name: string } | null };
+
+        const today = new Date().toISOString().slice(0, 10);
+        const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
         const fleetCount: Record<string, number> = {};
         (d.washes as WashRow[]).forEach((w) => {
           fleetCount[w.vehicle_type_id] = (fleetCount[w.vehicle_type_id] ?? 0) + 1;
         });
 
+        // Build 7-day revenue trend from transactions
+        const dayMap: Record<string, number> = {};
+        (d.washes as WashRow[]).forEach((w) => {
+          const day = w.started_at?.slice(0, 10);
+          if (day) dayMap[day] = (dayMap[day] ?? 0) + (w.price ?? 0);
+        });
+        const revenueTrend = Object.entries(dayMap).sort().map(([day, revenue]) => ({
+          day: new Date(day + "T12:00:00").toLocaleDateString("en", { weekday: "short" }),
+          revenue,
+        }));
+
+        const revenueToday = (d.washes as WashRow[]).filter((w) => w.started_at?.startsWith(today)).reduce((s, w) => s + (w.price ?? 0), 0);
+        const revenueYesterday = (d.washes as WashRow[]).filter((w) => w.started_at?.startsWith(yesterday)).reduce((s, w) => s + (w.price ?? 0), 0);
+
         setStats({
           carsToday: d.washes.length,
-          revenueToday: (d.washes as WashRow[]).reduce((s, w) => s + (w.price ?? 0), 0),
+          revenueToday,
+          revenueYesterday,
           soapUsed: (d.washes as WashRow[]).reduce((s, w) => s + (w.soap_used_ml ?? 0), 0),
           pendingRequests: d.pendingRequests,
           avgMinutes: d.washes.length
@@ -88,7 +108,7 @@ export default function DashboardPage() {
             name: w.profiles?.full_name ?? "Unknown",
             ml: w.balance_ml,
           })),
-          revenueTrend: REVENUE_TREND,
+          revenueTrend: revenueTrend.length ? revenueTrend : REVENUE_TREND,
           fleetMix: Object.entries(fleetCount).map(([id, value]) => ({
             name: id.charAt(0).toUpperCase() + id.slice(1),
             value,
@@ -97,10 +117,10 @@ export default function DashboardPage() {
         });
       })
       .catch(() => {
-        // fallback to mock
         setStats({
           carsToday: 37,
           revenueToday: 24600,
+          revenueYesterday: 20800,
           soapUsed: 1240,
           pendingRequests: REQUESTS.filter((r) => r.status === "pending").length,
           avgMinutes: 41,
@@ -124,11 +144,18 @@ export default function DashboardPage() {
     );
   }
 
+  const revDelta = stats.revenueYesterday > 0
+    ? Math.round(((stats.revenueToday - stats.revenueYesterday) / stats.revenueYesterday) * 100)
+    : null;
+  const revSub = revDelta !== null
+    ? `${revDelta >= 0 ? "+" : ""}${revDelta}% vs yesterday`
+    : "no prior data";
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KpiCard label="Cars Today" value={stats.carsToday} sub="+18% vs yesterday" icon={Car} />
-        <KpiCard label="Revenue Today" value={`${stats.revenueToday.toLocaleString()} birr`} sub="on target" icon={TrendingUp} />
+        <KpiCard label="Cars Today" value={stats.carsToday} sub="washes completed" icon={Car} />
+        <KpiCard label="Revenue Today" value={`${stats.revenueToday.toLocaleString()} birr`} sub={revSub} icon={TrendingUp} />
         <KpiCard label="Soap Used" value={`${stats.soapUsed.toLocaleString()} ml`} sub="today" icon={Droplet} accent="var(--amber)" />
         <KpiCard label="Pending Requests" value={stats.pendingRequests} sub={stats.pendingRequests > 0 ? "needs review" : "all clear"} icon={Bell} accent="var(--amber)" />
         <KpiCard label="Avg Wash Time" value={`${stats.avgMinutes} min`} sub="standard tracked" icon={Clock} />
@@ -137,7 +164,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         <div className="xl:col-span-2 rounded-2xl p-5 border border-line bg-panel">
-          <h3 className="font-[family-name:var(--font-display)] text-lg mb-4">Revenue vs Expenses — this week</h3>
+          <h3 className="font-[family-name:var(--font-display)] text-lg mb-4">Revenue — this week</h3>
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={stats.revenueTrend}>
               <defs>
@@ -151,7 +178,9 @@ export default function DashboardPage() {
               <YAxis stroke="#84939E" fontSize={12} />
               <Tooltip contentStyle={{ background: "#1C2830", border: "1px solid #243139", borderRadius: 8, color: "#E8EEF2" }} />
               <Area type="monotone" dataKey="revenue" stroke="#2FD5C8" fill="url(#rev)" strokeWidth={2} />
-              <Line type="monotone" dataKey="expenses" stroke="#F2A93B" strokeWidth={2} dot={false} />
+              {"expenses" in (stats.revenueTrend[0] ?? {}) && (
+                <Line type="monotone" dataKey="expenses" stroke="#F2A93B" strokeWidth={2} dot={false} />
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>

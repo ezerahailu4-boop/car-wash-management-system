@@ -49,6 +49,7 @@ export default function StorePage() {
   const [suppliers, setSuppliers] = useState(SUPPLIERS);
   const [soapReqs, setSoapReqs] = useState<SoapReq[]>([]);
   const [loadingReqs, setLoadingReqs] = useState(true);
+  const [liveInventory, setLiveInventory] = useState<typeof INVENTORY | null>(null);
   const [showPO, setShowPO] = useState(false);
   const [showSupplier, setShowSupplier] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -96,7 +97,15 @@ export default function StorePage() {
     setLoadingReqs(false);
   }
 
-  useEffect(() => { loadRequests(); }, []);
+  async function loadInventory() {
+    const supabase = createClient();
+    try {
+      const { data } = await supabase.from("inventory").select("*").order("product_name");
+      if (data?.length) setLiveInventory(data as typeof INVENTORY);
+    } catch { /* use mock */ }
+  }
+
+  useEffect(() => { loadRequests(); loadInventory(); }, []);
 
   async function decide(id: string, status: "approved" | "rejected") {
     const qty = status === "approved" ? Number(approveQty[id] ?? soapReqs.find((r) => r.id === id)?.quantity_requested ?? 0) : null;
@@ -365,7 +374,7 @@ export default function StorePage() {
               </tr>
             </thead>
             <tbody>
-              {INVENTORY.map((item) => {
+              {(liveInventory ?? INVENTORY).map((item) => {
                 const pct = Math.min(100, (item.total_ml / (item.min_stock_ml * 3)) * 100);
                 const tone = item.status === "ok" ? "var(--accent)" : item.status === "low" ? "var(--amber)" : "var(--red)";
                 return (
